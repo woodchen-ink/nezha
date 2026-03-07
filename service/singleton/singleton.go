@@ -70,6 +70,9 @@ func InitFrontendTemplates() error {
 	if err != nil {
 		return err
 	}
+	if err := initRuntimeUserTemplateFromEnv(); err != nil {
+		return err
+	}
 	return nil
 }
 
