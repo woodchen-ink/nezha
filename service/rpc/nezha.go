@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -268,6 +269,10 @@ func (s *NezhaHandler) ReportGeoIP(c context.Context, r *pb.GeoIP) (*pb.GeoIP, e
 	if !ok || server == nil {
 		return nil, fmt.Errorf("server not found")
 	}
+	prevCountryCode := ""
+	if server.GeoIP != nil {
+		prevCountryCode = strings.ToUpper(strings.TrimSpace(server.GeoIP.CountryCode))
+	}
 
 	// 检查并更新DDNS
 	if server.EnableDDNS && joinedIP != "" &&
@@ -315,6 +320,15 @@ func (s *NezhaHandler) ReportGeoIP(c context.Context, r *pb.GeoIP) (*pb.GeoIP, e
 
 	// 将地区码写入到 Host
 	server.GeoIP = &geoip
+
+	if singleton.Conf.AutoGroupByCountry {
+		nextCountryCode := strings.ToUpper(strings.TrimSpace(location))
+		if nextCountryCode != "" && nextCountryCode != prevCountryCode {
+			if err := singleton.AutoGroupServerByCountry(server, nextCountryCode); err != nil {
+				log.Printf("NEZHA>> Auto group by country failed: %v, clientID: %d", err, clientID)
+			}
+		}
+	}
 
 	return &pb.GeoIP{Ip: nil, CountryCode: location, DashboardBootTime: singleton.DashboardBootTime}, nil
 }
