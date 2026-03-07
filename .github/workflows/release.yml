@@ -17,8 +17,6 @@ jobs:
         include:
           - goos: linux
             goarch: arm64
-          - goos: linux
-            goarch: s390x
 
     name: Build artifacts
     runs-on: ubuntu-latest
@@ -56,43 +54,6 @@ jobs:
           go install github.com/swaggo/swag/cmd/swag@latest
           swag init --pd -d cmd/dashboard -g main.go -o cmd/dashboard/docs
           go mod tidy
-
-      - name: Cache zstd for s390x
-        if: matrix.goarch == 's390x'
-        id: cache-zstd
-        uses: actions/cache@v4
-        with:
-          path: /tmp/zstd-s390x
-          key: zstd-s390x-v1.5.7
-
-      - name: Build zstd for s390x
-        if: matrix.goarch == 's390x'
-        run: |
-          # gozstd doesn't ship prebuilt libzstd for s390x, build it manually
-          go mod vendor
-
-          if [ -f /tmp/zstd-s390x/libzstd.a ]; then
-            echo "Using cached libzstd.a"
-          else
-            # Clone zstd source and build for s390x
-            ZSTD_VERSION=v1.5.7
-            git clone --depth 1 --branch ${ZSTD_VERSION} https://github.com/facebook/zstd /tmp/zstd
-            cd /tmp/zstd/lib
-            CC=s390x-linux-gnu-gcc \
-              CXX=s390x-linux-gnu-g++ \
-              AR=s390x-linux-gnu-ar \
-              ZSTD_LEGACY_SUPPORT=0 \
-              make clean libzstd.a
-            mkdir -p /tmp/zstd-s390x
-            cp libzstd.a /tmp/zstd-s390x/libzstd.a
-          fi
-
-          # Copy to vendor directory
-          GOZSTD_VENDOR=${GITHUB_WORKSPACE}/vendor/github.com/valyala/gozstd
-          cp /tmp/zstd-s390x/libzstd.a ${GOZSTD_VENDOR}/libzstd_linux_s390x.a
-          
-          # Create the Go file to link the library
-          printf '//go:build linux && s390x\n\npackage gozstd\n\n/*\n#cgo LDFLAGS: ${SRCDIR}/libzstd_linux_s390x.a\n*/\nimport "C"\n' > ${GOZSTD_VENDOR}/libzstd_linux_s390x.go
 
       - name: Build with tag
         if: contains(github.ref, 'refs/tags/')
@@ -191,16 +152,6 @@ jobs:
           mkdir dist
           mv ./assets/*/*/* ./dist
 
-      - name: Extract branch name in tag
-        run: |
-          if [[ $GITHUB_REF == refs/heads/* ]]; then
-            export TAG_NAME=$(echo ${GITHUB_REF#refs/heads/})
-          else
-            export TAG_NAME=$(echo ${GITHUB_REF#refs/tags/})
-          fi
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-        id: extract_branch
-
       - name: Log into GHCR
         uses: docker/login-action@master
         with:
@@ -208,52 +159,39 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
-      - name: Log in to the AliyunCS
-        if: contains(github.ref, 'refs/tags/')
-        uses: docker/login-action@master
-        with:
-          registry: registry.cn-shanghai.aliyuncs.com
-          username: ${{ secrets.ALI_USER }}
-          password: ${{ secrets.ALI_PAT }}
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set up image name
+      - name: Generate version and image tags
+        id: docker-meta
         run: |
-          GHCR_IMAGE_NAME=$(echo "ghcr.io/${{ github.repository_owner }}/nezha" | tr '[:upper:]' '[:lower:]')
-          if [ ${{ github.repository_owner }} = "nezhahq" ]
-            then ALI_IMAGE_NAME=$(echo "registry.cn-shanghai.aliyuncs.com/naibahq/nezha-dashboard")
-            else ALI_IMAGE_NAME=$(echo "registry.cn-shanghai.aliyuncs.com/${{ github.repository_owner }}/nezha-dashboard" | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME=$(echo "ghcr.io/${{ github.repository_owner }}/nezha" | tr '[:upper:]' '[:lower:]')
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION="${VERSION#v}"
+            TAGS="${IMAGE_NAME}:latest"$'\n'"${IMAGE_NAME}:${VERSION}"
+          else
+            VERSION="dev-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}-$(echo "${GITHUB_SHA}" | cut -c1-7)"
+            TAGS="${IMAGE_NAME}:dev"$'\n'"${IMAGE_NAME}:${VERSION}"
           fi
-          echo "GHCR_IMAGE_NAME=$GHCR_IMAGE_NAME" >> $GITHUB_OUTPUT
-          echo "ALI_IMAGE_NAME=$ALI_IMAGE_NAME" >> $GITHUB_OUTPUT
-        id: image-name
 
-      - name: Build dasbboard image And Push with tag
-        if: contains(github.ref, 'refs/tags/')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+          echo "${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Build dashboard image and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/s390x
+          platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ steps.image-name.outputs.GHCR_IMAGE_NAME }}:latest
-            ${{ steps.image-name.outputs.GHCR_IMAGE_NAME }}:${{ steps.extract_branch.outputs.tag }}
-            ${{ steps.image-name.outputs.ALI_IMAGE_NAME }}:latest
-            ${{ steps.image-name.outputs.ALI_IMAGE_NAME }}:${{ steps.extract_branch.outputs.tag }}
-
-      - name: Build dasbboard image And Push snapshot
-        if: contains(github.ref, 'refs/tags/') == false
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/s390x
-          push: true
-          tags: |
-            ${{ steps.image-name.outputs.GHCR_IMAGE_NAME }}:${{ steps.extract_branch.outputs.tag }}
+          tags: ${{ steps.docker-meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.docker-meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
