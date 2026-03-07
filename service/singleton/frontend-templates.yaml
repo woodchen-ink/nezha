@@ -20,7 +20,7 @@
   name: "Nezha-LiquidGlass"
   repository: "https://github.com/woodchen-ink/nezha-liquidglass"
   author: "woodchen-ink"
-  version: "v2.0.3"
+  version: "v2.0.4"
 - path: "nezha-ascii-dist"
   name: "Nezha-ASCII"
   repository: "https://github.com/hamster1963/nezha-ascii"
