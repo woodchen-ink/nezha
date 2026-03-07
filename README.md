@@ -78,7 +78,7 @@ docker run -d --name nezha \
 docker run ... ghcr.io/nezhahq/nezha:latest
 
 # 切换后
-docker run ... ghcr.io/woodchen-ink/nezha:latest
+docker run ... ghcr.io/woodchen-ink/nezha:latest(请看实际版本号, latest是占位符)
 ```
 
 `docker-compose.yml` 示例：
@@ -87,5 +87,5 @@ docker run ... ghcr.io/woodchen-ink/nezha:latest
 services:
   nezha:
     # image: ghcr.io/nezhahq/nezha:latest
-    image: ghcr.io/woodchen-ink/nezha:latest
+    image: ghcr.io/woodchen-ink/nezha:latest(请看实际版本号, latest是占位符)
 ```
