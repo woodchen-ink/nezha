@@ -298,7 +298,7 @@ func getUid(c *gin.Context) uint64 {
 
 func fallbackToFrontend(frontendDist fs.FS) func(*gin.Context) {
 	checkLocalFileOrFs := func(c *gin.Context, fs fs.FS, path string, customStatusCode int) bool {
-		if _, err := os.Stat(path); err == nil {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			http.ServeFile(utils.NewGinCustomWriter(c, customStatusCode), c.Request, path)
 			return true
 		}
