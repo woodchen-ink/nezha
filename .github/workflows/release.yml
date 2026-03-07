@@ -8,16 +8,17 @@ on:
       - dev
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     strategy:
       fail-fast: true
       matrix:
-        goos: [linux, windows]
-        goarch: [amd64]
-        include:
-          - goos: linux
-            goarch: arm64
+        goos: [linux]
+        goarch: [amd64, arm64]
 
     name: Build artifacts
     runs-on: ubuntu-latest
@@ -87,56 +88,8 @@ jobs:
           path: |
             ./dist/*/*
 
-  release:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
-    needs: build
-    name: Release
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./assets
-
-      - name: Archive and compress binaries
-        run: |
-          find assets/*/*/* -type f | while read -r file; do
-            dir=$(dirname "$file")
-            filename=$(basename "$file")
-            fileWithoutExt="${filename%.*}"
-            zip -jr "$dir/$fileWithoutExt.zip" "$file"
-          done
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: "assets/*/*/*.zip"
-          generate_release_notes: true
-
-      - name: Purge jsdelivr cache
-        run: |
-          curl -s https://purge.jsdelivr.net/gh/${{ github.repository_owner }}/nezha@master/script/install.sh
-          curl -s https://purge.jsdelivr.net/gh/${{ github.repository_owner }}/nezha@master/script/nezha-agent.service
-          curl -s https://purge.jsdelivr.net/gh/${{ github.repository_owner }}/nezha@master/script/docker-compose.yaml
-          curl -s https://purge.jsdelivr.net/gh/${{ github.repository_owner }}/nezha@master/script/config.yaml
-          LOWER_USERNAME=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          curl -s https://purge.jsdelivr.net/gh/$LOWER_USERNAME/nezha@master/script/install.sh
-          curl -s https://purge.jsdelivr.net/gh/$LOWER_USERNAME/nezha@master/script/nezha-agent.service
-          curl -s https://purge.jsdelivr.net/gh/$LOWER_USERNAME/nezha@master/script/docker-compose.yaml
-          curl -s https://purge.jsdelivr.net/gh/$LOWER_USERNAME/nezha@master/script/config.yaml
-
-      - name: Trigger sync
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-          GH_DEBUG: api
-        run: |
-          gh workflow run sync-release.yml
-          gh workflow run sync-release-atomgit.yml
-
   release-docker:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     needs: build
     name: Release Docker images
     steps:
