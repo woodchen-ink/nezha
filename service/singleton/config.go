@@ -26,6 +26,10 @@ func InitConfigFromPath(path string) error {
 	if err != nil {
 		return err
 	}
+	if runtimeDefaultUserTemplate := GetRuntimeDefaultUserTemplate(); runtimeDefaultUserTemplate != "" {
+		// Keep runtime extra-theme default higher priority than persisted config.yaml.
+		Conf.UserTemplate = runtimeDefaultUserTemplate
+	}
 
 	Conf.updateIgnoredIPNotificationID()
 	Conf.Oauth2Providers = utils.MapKeysToSlice(Conf.Oauth2)

@@ -109,18 +109,17 @@ func (c *Config) Read(path string, frontendTemplates []FrontendTemplate) error {
 	c.k = koanf.New(".")
 	c.filePath = path
 
+	if _, err := os.Stat(path); err == nil {
+		if err = c.k.Load(file.Provider(path), new(utils.KubeYAML), koanf.WithMergeFunc(mergeDedup)); err != nil {
+			return err
+		}
+	}
+
 	err := c.k.Load(env.Provider("NZ_", ".", func(s string) string {
 		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "NZ_")), "_", ".")
 	}), nil)
 	if err != nil {
 		return err
-	}
-
-	if _, err := os.Stat(path); err == nil {
-		err = c.k.Load(file.Provider(path), new(utils.KubeYAML), koanf.WithMergeFunc(mergeDedup))
-		if err != nil {
-			return err
-		}
 	}
 
 	err = c.k.UnmarshalWithConf("", c, koanfConf(c))

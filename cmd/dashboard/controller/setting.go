@@ -107,6 +107,9 @@ func updateConfig(c *gin.Context) (any, error) {
 	singleton.Conf.AgentRealIPHeader = sf.AgentRealIPHeader
 	singleton.Conf.AgentTLS = sf.AgentTLS
 	singleton.Conf.UserTemplate = sf.UserTemplate
+	if runtimeDefault := singleton.GetRuntimeDefaultUserTemplate(); runtimeDefault != "" {
+		singleton.Conf.UserTemplate = runtimeDefault
+	}
 
 	if err := singleton.Conf.Save(); err != nil {
 		return nil, newGormError("%v", err)

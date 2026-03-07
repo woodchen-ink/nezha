@@ -29,6 +29,7 @@ const (
 )
 
 var frontendPathPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var runtimeDefaultUserTemplatePath string
 
 func initRuntimeUserTemplateFromEnv() error {
 	repository := strings.TrimSpace(os.Getenv(envExtraUserThemeRepo))
@@ -78,14 +79,16 @@ func initRuntimeUserTemplateFromEnv() error {
 	})
 
 	if setAsDefault {
-		if err := os.Setenv("NZ_USER_TEMPLATE", path); err != nil {
-			return err
-		}
+		runtimeDefaultUserTemplatePath = path
 		log.Printf("NEZHA>> Runtime user template %q set as default via %s=true", path, envExtraUserThemeDefault)
 	}
 
 	log.Printf("NEZHA>> Runtime user template loaded: repo=%s version=%s path=%s", repoURL, version, path)
 	return nil
+}
+
+func GetRuntimeDefaultUserTemplate() string {
+	return runtimeDefaultUserTemplatePath
 }
 
 func parseBoolEnv(key string, defaultValue bool) (bool, error) {
