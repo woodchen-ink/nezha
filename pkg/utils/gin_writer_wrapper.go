@@ -16,5 +16,9 @@ func NewGinCustomWriter(c *gin.Context, code int) *GinCustomWriter {
 }
 
 func (w *GinCustomWriter) WriteHeader(code int) {
+	if code == 304 {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
 	w.ResponseWriter.WriteHeader(w.customCode)
 }
