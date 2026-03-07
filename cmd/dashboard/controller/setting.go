@@ -111,11 +111,20 @@ func updateConfig(c *gin.Context) (any, error) {
 		singleton.Conf.UserTemplate = runtimeDefault
 	}
 
+	prevAutoGroup := singleton.Conf.AutoGroupByCountry
+	singleton.Conf.AutoGroupByCountry = sf.AutoGroupByCountry
+
 	if err := singleton.Conf.Save(); err != nil {
 		return nil, newGormError("%v", err)
 	}
 
 	singleton.OnUpdateLang(singleton.Conf.Language)
+
+	// 启用自动分组时，立即对所有已有 GeoIP 的服务器执行一次分组
+	if !prevAutoGroup && sf.AutoGroupByCountry {
+		go singleton.AutoGroupAllServersByCountry()
+	}
+
 	return nil, nil
 }
 

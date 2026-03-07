@@ -3,6 +3,7 @@ package singleton
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"gorm.io/gorm"
@@ -12,6 +13,28 @@ import (
 )
 
 const autoCountryGroupNamePrefix = "[AUTO] Country: "
+
+// AutoGroupAllServersByCountry 对所有已有 GeoIP 数据的服务器执行一次按国家自动分组。
+// 用于启动时、配置变更时以及定时刷新场景。
+func AutoGroupAllServersByCountry() {
+	if !Conf.AutoGroupByCountry {
+		return
+	}
+
+	serverList := ServerShared.GetList()
+	for _, server := range serverList {
+		if server.GeoIP == nil {
+			continue
+		}
+		code := strings.ToUpper(strings.TrimSpace(server.GeoIP.CountryCode))
+		if code == "" {
+			continue
+		}
+		if err := AutoGroupServerByCountry(server, code); err != nil {
+			log.Printf("NEZHA>> Auto group by country failed: %v, serverID: %d", err, server.ID)
+		}
+	}
+}
 
 func AutoGroupServerByCountry(server *model.Server, countryCode string) error {
 	if server == nil || server.ID == 0 {

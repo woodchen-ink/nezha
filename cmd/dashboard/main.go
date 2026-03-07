@@ -75,6 +75,12 @@ func initSystem(bus chan<- *model.Service) error {
 	if _, err := singleton.CronShared.AddFunc("0 0 * * * *", func() { singleton.RecordTransferHourlyUsage() }); err != nil {
 		return err
 	}
+
+	// 每30分钟定时刷新按国家自动分组
+	if _, err := singleton.CronShared.AddFunc("0 */30 * * * *", singleton.AutoGroupAllServersByCountry); err != nil {
+		return err
+	}
+
 	return nil
 }
 
