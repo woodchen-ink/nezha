@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -139,6 +139,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Build dashboard image and push
+        id: docker-build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -149,3 +150,90 @@ jobs:
           labels: |
             org.opencontainers.image.version=${{ steps.docker-meta.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+    outputs:
+      version: ${{ steps.docker-meta.outputs.version }}
+      tags: ${{ steps.docker-meta.outputs.tags }}
+      digest: ${{ steps.docker-build.outputs.digest }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: release-docker
+    name: Create Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./assets
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for dir in ./assets/*/; do
+            arch_name=$(basename "$dir")
+            for file in "$dir"*; do
+              if [ -f "$file" ]; then
+                cp "$file" "release/${arch_name}"
+              fi
+            done
+          done
+          cd release && sha256sum * > checksums.txt
+
+      - name: Generate release body
+        run: |
+          IMAGE_NAME=$(echo "ghcr.io/${{ github.repository_owner }}/nezha" | tr '[:upper:]' '[:lower:]')
+          VERSION="${{ needs.release-docker.outputs.version }}"
+          DIGEST="${{ needs.release-docker.outputs.digest }}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            FLOATING_TAG="latest"
+          else
+            FLOATING_TAG="dev"
+          fi
+
+          {
+            echo "## Docker Images"
+            echo ""
+            echo "| Tag | Image |"
+            echo "|-----|-------|"
+            echo "| ${FLOATING_TAG} | \`${IMAGE_NAME}:${FLOATING_TAG}\` |"
+            echo "| ${VERSION} | \`${IMAGE_NAME}:${VERSION}\` |"
+            echo ""
+            echo "**Image Digest:** \`${DIGEST}\`"
+            echo ""
+            echo "### Pull Commands"
+            echo ""
+            echo "\`\`\`bash"
+            echo "# ${FLOATING_TAG}"
+            echo "docker pull ${IMAGE_NAME}:${FLOATING_TAG}"
+            echo ""
+            echo "# Specific version"
+            echo "docker pull ${IMAGE_NAME}:${VERSION}"
+            echo ""
+            echo "# By digest"
+            echo "docker pull ${IMAGE_NAME}@${DIGEST}"
+            echo "\`\`\`"
+          } > release-body.md
+
+      - name: Determine release tag
+        id: release-tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-$(echo "${GITHUB_SHA}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-tag.outputs.tag }}
+          prerelease: ${{ steps.release-tag.outputs.prerelease }}
+          body_path: release-body.md
+          files: release/*
+          generate_release_notes: true
+          append_body: true
