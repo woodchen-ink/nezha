@@ -67,8 +67,7 @@ docker run -d --name nezha \
 
 开启后，Dashboard 会在收到服务器 GeoIP 国家码时，自动将服务器加入对应国家分组。
 
-- 配置项：`auto_group_by_country: true`
-- 环境变量：`NZ_AUTO_GROUP_BY_COUNTRY=true`
+- 环境变量：`NZ_AUTOGROUPBYCOUNTRY=true`
 - 分组命名：`[AUTO] Country: <国家码>`（例如 `US`、`SG`）
 - 若分组不存在，会自动创建
 - 若服务器国家发生变化，会自动迁移到新国家分组

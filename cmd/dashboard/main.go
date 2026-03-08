@@ -80,6 +80,7 @@ func initSystem(bus chan<- *model.Service) error {
 	if _, err := singleton.CronShared.AddFunc("0 */30 * * * *", singleton.AutoGroupAllServersByCountry); err != nil {
 		return err
 	}
+	log.Printf("NEZHA>> AutoGroupByCountry cron registered, config enabled: %v", singleton.Conf.AutoGroupByCountry)
 
 	return nil
 }

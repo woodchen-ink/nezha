@@ -15,7 +15,7 @@ import (
 	"github.com/nezhahq/nezha/model"
 )
 
-const autoCountryGroupNamePrefix = "[AUTO] Country: "
+const autoCountryGroupNamePrefix = "@"
 
 // resolveCountryCode 尝试获取服务器的国家码。
 // 优先使用已有的 CountryCode，如果为空则尝试通过 IP 进行 GeoIP 查询。
