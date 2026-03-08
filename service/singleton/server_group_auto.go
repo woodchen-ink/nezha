@@ -4,15 +4,56 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	geoipx "github.com/nezhahq/nezha/pkg/geoip"
+
 	"github.com/nezhahq/nezha/model"
 )
 
 const autoCountryGroupNamePrefix = "[AUTO] Country: "
+
+// resolveCountryCode 尝试获取服务器的国家码。
+// 优先使用已有的 CountryCode，如果为空则尝试通过 IP 进行 GeoIP 查询。
+func resolveCountryCode(server *model.Server) string {
+	if server.GeoIP == nil {
+		return ""
+	}
+
+	code := strings.TrimSpace(server.GeoIP.CountryCode)
+	if code != "" {
+		return strings.ToUpper(code)
+	}
+
+	// CountryCode 为空但有 IP 时，主动进行 GeoIP 查询
+	var ip string
+	if server.GeoIP.IP.IPv4Addr != "" {
+		ip = server.GeoIP.IP.IPv4Addr
+	} else if server.GeoIP.IP.IPv6Addr != "" {
+		ip = server.GeoIP.IP.IPv6Addr
+	}
+	if ip == "" {
+		return ""
+	}
+
+	netIP := net.ParseIP(ip)
+	if netIP == nil {
+		return ""
+	}
+
+	location, err := geoipx.Lookup(netIP)
+	if err != nil || location == "" {
+		return ""
+	}
+
+	// 回写到内存中，避免每次定时任务都重复查询
+	server.GeoIP.CountryCode = location
+	return strings.ToUpper(location)
+}
 
 // AutoGroupAllServersByCountry 对所有已有 GeoIP 数据的服务器执行一次按国家自动分组。
 // 用于配置变更时以及定时刷新场景。
@@ -21,28 +62,21 @@ func AutoGroupAllServersByCountry() {
 		return
 	}
 
-	serverList := ServerShared.GetList()
-	var total, skippedNil, skippedEmpty, count int
-	for _, server := range serverList {
+	var total, processed int
+	for _, server := range ServerShared.GetList() {
 		total++
-		if server.GeoIP == nil {
-			skippedNil++
-			continue
-		}
-		code := strings.ToUpper(strings.TrimSpace(server.GeoIP.CountryCode))
+		code := resolveCountryCode(server)
 		if code == "" {
-			skippedEmpty++
 			continue
 		}
 		if err := AutoGroupServerByCountry(server, code); err != nil {
 			log.Printf("NEZHA>> Auto group by country failed: %v, serverID: %d", err, server.ID)
 		} else {
-			count++
+			processed++
 		}
 	}
 
-	log.Printf("NEZHA>> AutoGroupAll: total=%d processed=%d skippedNilGeoIP=%d skippedEmptyCode=%d",
-		total, count, skippedNil, skippedEmpty)
+	log.Printf("NEZHA>> AutoGroupAll: total=%d processed=%d", total, processed)
 }
 
 func AutoGroupServerByCountry(server *model.Server, countryCode string) error {
