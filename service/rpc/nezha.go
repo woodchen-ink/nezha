@@ -314,7 +314,11 @@ func (s *NezhaHandler) ReportGeoIP(c context.Context, r *pb.GeoIP) (*pb.GeoIP, e
 	netIP := net.ParseIP(ip)
 	location, err := geoipx.Lookup(netIP)
 	if err != nil {
-		log.Printf("NEZHA>> geoip.Lookup: %v", err)
+		log.Printf("NEZHA>> geoip.Lookup failed: %v, ip: %s", err, ip)
+		// GeoIP lookup 失败时使用 agent 上报的 country_code 作为 fallback
+		if agentCC := r.GetCountryCode(); agentCC != "" && location == "" {
+			location = agentCC
+		}
 	}
 	geoip.CountryCode = location
 
@@ -323,6 +327,8 @@ func (s *NezhaHandler) ReportGeoIP(c context.Context, r *pb.GeoIP) (*pb.GeoIP, e
 
 	if singleton.Conf.AutoGroupByCountry {
 		nextCountryCode := strings.ToUpper(strings.TrimSpace(location))
+		log.Printf("NEZHA>> AutoGroup check: clientID=%d prev=%q next=%q confEnabled=%v",
+			clientID, prevCountryCode, nextCountryCode, singleton.Conf.AutoGroupByCountry)
 		if nextCountryCode != "" && nextCountryCode != prevCountryCode {
 			if err := singleton.AutoGroupServerByCountry(server, nextCountryCode); err != nil {
 				log.Printf("NEZHA>> Auto group by country failed: %v, clientID: %d", err, clientID)
