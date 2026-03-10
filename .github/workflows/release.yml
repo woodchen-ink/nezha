@@ -161,26 +161,6 @@ jobs:
     needs: release-docker
     name: Create Release
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./assets
-
-      - name: Prepare release assets
-        run: |
-          mkdir -p release
-          for dir in ./assets/*/; do
-            arch_name=$(basename "$dir")
-            for file in "$dir"*; do
-              if [ -f "$file" ]; then
-                cp "$file" "release/${arch_name}"
-              fi
-            done
-          done
-          cd release && sha256sum * > checksums.txt
-
       - name: Generate release body
         run: |
           IMAGE_NAME=$(echo "ghcr.io/${{ github.repository_owner }}/nezha" | tr '[:upper:]' '[:lower:]')
