@@ -6,6 +6,8 @@ on:
       - "v*"
     branches:
       - master
+    paths-ignore:
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:

@@ -22,6 +22,37 @@
 - [English](https://nezhahq.github.io/en_US/index.html)
 - [中文文档](https://nezhahq.github.io/index.html)
 
+
+## 使用示例
+
+> 完整兼容官方配置, 所有新增功能通过环境变量开启, 可选. 
+
+```yml
+services:
+  dashboard:
+    image: ghcr.io/woodchen-ink/nezha:dev-15.1-c2ebdf7
+    container_name: nezha-dashboard
+    restart: always
+    volumes:
+      - nezha-data:/dashboard/data
+    ports:
+      - 18009:18009
+    environment:
+      - NZ_EXTRA_USER_THEME_REPOSITORY=woodchen-ink/nezha-liquidglass
+      - NZ_EXTRA_USER_THEME_VERSION=v2.0.8
+      - NZ_EXTRA_USER_THEME_PATH=nezha-liquidglass-dist
+      - NZ_EXTRA_USER_THEME_DEFAULT=true
+      - NZ_AUTOGROUPBYCOUNTRY=true
+    networks:
+      - dokploy-network
+      - default
+volumes:
+  nezha-data: null
+networks:
+  dokploy-network:
+    external: true
+```
+
 ## 中文说明（本仓库改动）
 
 ### 1. Docker 发布策略调整
