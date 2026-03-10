@@ -216,6 +216,7 @@ jobs:
         with:
           tag_name: ${{ steps.release-tag.outputs.tag }}
           prerelease: ${{ steps.release-tag.outputs.prerelease }}
+          draft: false
           body_path: release-body.md
           generate_release_notes: true
           append_body: true
